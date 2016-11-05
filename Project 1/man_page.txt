@@ -1,0 +1,31 @@
+SVEDIT(69)
+
+NAME
+	svedit -- edit the shared_value of a process
+
+SYNOPSIS
+	#include <unistd.h>
+
+	int
+	do_svedit(void);
+
+DESCRIPTION
+	svedit will determine or edit the shared_value.  It requires a message being sent to it with two int values. The first int is a rw variable to determine whether you are getting(rw = 0) or setting (rw = 1) the shared_value. The second int is the newVal if you're calling set_sv, or the pid if you're calling get_sv.  The status is then set depending on whether the pid is a currently existing process.  
+
+RETURN VALUES
+	Upon successful completion, do_svedit() returns the status of the system call.  SUCCESS = 0, FAILURE = 1. Another return value is the shared_value which is returned through mp_reply in the first int value of the message.
+
+ERRORS
+	None. Everything is perfect, because I am perfect.
+
+LEGACY SYNOPSIS
+	This is it's first implementation, and as such it has no legacy.
+
+SEE ALSO
+	mp_reply()
+
+HISTORY
+	This is it's first implementation, and as such it has no legacy.
+
+CAVEATS
+	This may not be as correct as it should be.  

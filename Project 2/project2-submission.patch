@@ -1,0 +1,772 @@
+diff --git a/include/minix/callnr.h b/include/minix/callnr.h
+index 6f145cf..c9d3571 100644
+--- a/include/minix/callnr.h
++++ b/include/minix/callnr.h
+@@ -65,6 +65,13 @@
+ #define SETGROUPS_O	  66
+ #define GETMCONTEXT       67
+ #define SETMCONTEXT       68
++/*---------------------------------MADELEINE'S ADDITIONS----------------------------------*/
++#define SVEDIT        69 //PROJECT 1: SVEDIT
++#define CREAT_SEM     56 //PROJECT 2: SEMAPHORES
++#define DOWN_SEM      57
++#define UP_SEM        58
++#define DELETE_SEM    70
++/*---------------------------------MADELEINE'S ADDITIONS----------------------------------*/
+ 
+ /* Posix signal handling. */
+ #define SIGACTION	  71
+diff --git a/include/minix/config.h b/include/minix/config.h
+index 35036b9..1d650de 100644
+--- a/include/minix/config.h
++++ b/include/minix/config.h
+@@ -3,9 +3,10 @@
+ 
+ /* Minix release and version numbers. */
+ #define OS_RELEASE "3"
+-#define OS_VERSION "2.1"
++#define OS_VERSION "47.mlm"
+ 
+-/* This file sets configuration parameters for the MINIX kernel, FS, and PM.
++/* This file sets configuration parameters for the MINIX kernel, FS, and 
++PM.
+  * It is divided up into two main sections.  The first section contains
+  * user-settable parameters.  In the second section, various internal system
+  * parameters are set based on the user-settable parameters.
+diff --git a/include/minix/sys_config.h b/include/minix/sys_config.h
+index 533046c..2a66d89 100644
+--- a/include/minix/sys_config.h
++++ b/include/minix/sys_config.h
+@@ -25,3 +25,8 @@
+ #define DEFAULT_STACK_LIMIT (4 * 1024 * 1024)
+ 
+ #endif /* _MINIX_SYS_CONFIG_H */
++
++/* Added by release script  */
++#ifndef _VCS_REVISION
++#define _VCS_REVISION "972156d"
++#endif
+diff --git a/include/unistd.h b/include/unistd.h
+index 55a146b..3acc60b 100644
+--- a/include/unistd.h
++++ b/include/unistd.h
+@@ -437,6 +437,24 @@ extern	 int optreset;		/* getopt(3) external variable */
+ extern	 char *suboptarg;	/* getsubopt(3) external variable */
+ #endif
+ 
++/*-------------------------------MADELEINE'S ADDITIONS-----------------------------------*/
++//Project 1, library for calling svedit syscall
++int set_sv(int newVal, int* status);
++int get_sv(int pid, int* status);
++//Project 2, library for semaphore syscalls
++
++typedef int semaphore;
++
++#define NULL 0
++#define BINARY 0
++#define MULTIVALUED 1
++
++semaphore create_semaphore(int type, int initial_value);
++int down(semaphore s);
++int up(semaphore s);
++int delete_semaphore(semaphore s);
++/*---------------------------------------------------------------------------------------*/
++
+ __END_DECLS
+ 
+ #ifdef __minix
+diff --git a/lib/libc/sys-minix/Makefile.inc b/lib/libc/sys-minix/Makefile.inc
+index 6f52097..07cae44 100644
+--- a/lib/libc/sys-minix/Makefile.inc
++++ b/lib/libc/sys-minix/Makefile.inc
+@@ -16,7 +16,7 @@ SRCS+= 	accept.c access.c bind.c brk.c sbrk.c m_closefrom.c getsid.c \
+ 	vectorio.c shutdown.c sigaction.c sigpending.c sigreturn.c sigsuspend.c\
+ 	sigprocmask.c socket.c socketpair.c stat.c statvfs.c symlink.c \
+ 	sync.c syscall.c sysuname.c truncate.c umask.c unlink.c write.c \
+-	_exit.c _ucontext.c environ.c __getcwd.c vfork.c sizeup.c init.c
++	_exit.c _ucontext.c environ.c __getcwd.c vfork.c sizeup.c init.c svedit.c semaphoreLib.c
+ 
+ # Minix specific syscalls.
+ SRCS+= cprofile.c lseek64.c sprofile.c _mcontext.c
+diff --git a/lib/libc/sys-minix/semaphoreLib.c b/lib/libc/sys-minix/semaphoreLib.c
+new file mode 100644
+index 0000000..d98c7d2
+--- /dev/null
++++ b/lib/libc/sys-minix/semaphoreLib.c
+@@ -0,0 +1,85 @@
++#include <lib.h>
++#include <unistd.h>
++#include <stdio.h>
++
++//implementing lib functions
++semaphore create_semaphore(int type, int initial_value) {
++	//printf("it makes it into create_semaphore.\n");
++
++	//error checking
++	if(type == BINARY) {
++		if(initial_value > 1 || initial_value < 0) {
++			return NULL;
++		}
++	}
++	else if(type == MULTIVALUED) {
++		if(initial_value < 0) {
++			return NULL;
++		}
++	}
++	else return NULL; //not accurate type
++
++	//printf("finishes checking the inputs.\n");
++
++	message m;
++	m.m1_i1 = type;
++	m.m1_i2 = initial_value;
++
++	int status = _syscall(PM_PROC_NR, CREAT_SEM, &m);
++	//printf("Returns from syscall.\n");
++	
++	if(status == -1) { //if fails, return NULL
++		return NULL;
++	}
++
++	semaphore s = m.m1_i1;
++	//printf("The semaphore index is: %d\n",s);
++	return s;
++}
++
++int down(semaphore s) { //take
++	message m;
++	m.m1_i1 = s;
++
++	int status = _syscall(PM_PROC_NR, DOWN_SEM, &m);
++	
++	if(status == -1) { //if call fails
++		return NULL;
++	}
++
++	return -1; //call succeeded
++}
++
++int up(semaphore s) { //give
++	message m;
++	m.m1_i1 = s;
++
++	int status = _syscall(PM_PROC_NR, UP_SEM, &m);
++	//printf("EINVAL in lib is: %d\n", EINVAL);
++
++	if(status == -1) { //if call fails
++		return NULL;
++	}
++
++	return -1; //call succeeded
++}
++
++int delete_semaphore(semaphore s) {
++	//obvious error checking
++	if(s < 0) {
++		return NULL;
++	}
++	message m;
++	m.m1_i1 = s;
++
++	int status = _syscall(PM_PROC_NR, DELETE_SEM, &m);
++	//printf("It left syscall. status: %d\n", status);
++	if(status == -1) { //if call fails
++		return NULL;
++	}
++
++	return -1; //call succeeded
++
++}
++
++//EINVAL = 22
+diff --git a/lib/libc/sys-minix/svedit.c b/lib/libc/sys-minix/svedit.c
+new file mode 100644
+index 0000000..83cdbad
+--- /dev/null
++++ b/lib/libc/sys-minix/svedit.c
+@@ -0,0 +1,44 @@
++#include <lib.h>
++#include <unistd.h>
++#include <stdio.h>
++
++//Library Functions for the SVEDIT syscall
++int set_sv(int newVal, int* status) {
++	//changes the value of shared_value to newVal
++	//status is the status of the call -> always success (0)
++	//printf("It entered the set_sv function.\n");
++	message m;
++
++	int rw = 1; //setting to writing
++	m.m1_i1 = rw;
++	m.m1_i2 = newVal;
++
++	//printf("It created the message for the syscall.\n");
++	int sysCallVal = _syscall(PM_PROC_NR, SVEDIT, &m);
++	*status = sysCallVal;
++
++	//printf("It exited the syscall.\n");
++	int shared_val = m.m1_i2;
++	return shared_val;
++	
++}
++
++int get_sv(int pid, int* status) {
++	//pid == ID of process who's shared_value to be read
++	//status == status of syscall
++	//printf("It entered the function get_sv.\n");
++	message m;
++	int rw = 0; //setting to read
++	m.m1_i1 = rw;
++	m.m1_i2 = pid;
++
++	//printf("It got past creating the message.\n");
++	int sysCallVal = _syscall(PM_PROC_NR, SVEDIT, &m);
++	*status = sysCallVal;
++	//printf("It exited the syscall.\n");
++	int shared_val = m.m1_i2;
++	return shared_val;
++}
++
++//when calling the syscall: _syscall(PM_PROC_NR, SVEDIT, &m)
++//m is a message
+\ No newline at end of file
+diff --git a/lib/libc/ucontextoffsets.h b/lib/libc/ucontextoffsets.h
+new file mode 100644
+index 0000000..7e09221
+--- /dev/null
++++ b/lib/libc/ucontextoffsets.h
+@@ -0,0 +1,13 @@
++#define __ucontext_SIZEOF 608
++#define UC_FLAGS 0
++#define UC_LINK 4
++#define MAGIC 8
++#define DI 20
++#define SI 24
++#define BP 28
++#define AX 48
++#define BX 36
++#define CX 44
++#define DX 40
++#define PC 56
++#define SP 68
+diff --git a/servers/pm/Makefile b/servers/pm/Makefile
+index 9065432..f620fba 100644
+--- a/servers/pm/Makefile
++++ b/servers/pm/Makefile
+@@ -4,7 +4,7 @@
+ PROG=	pm
+ SRCS=	main.c forkexit.c break.c exec.c time.c alarm.c \
+ 	signal.c utility.c table.c getset.c misc.c \
+-	profile.c schedule.c
++	profile.c schedule.c do_svedit.c semaphore.c
+ 
+ .if ${USE_MCONTEXT} != "no"
+ SRCS+= mcontext.c
+diff --git a/servers/pm/do_svedit.c b/servers/pm/do_svedit.c
+new file mode 100644
+index 0000000..bfbf84c
+--- /dev/null
++++ b/servers/pm/do_svedit.c
+@@ -0,0 +1,50 @@
++#include "pm.h"
++#include "mproc.h"
++#include <stdio.h>
++
++
++int do_svedit() {
++	//shared_val may be read by ANY process
++	//shared_val may be written only by owner (process who's process table entry holds shared_val)
++	//mp = current process pointer
++	//who_p for caller's process number
++
++	//status is the status of the call
++	//rw = whether read or write
++	int rw = m_in.m1_i1;
++	int status;
++
++	if(rw == 0) { //rw=0 means read (get_sv)
++		int pid = m_in.m1_i2; //sets pid to the second int in message
++		//check if pid is an existing process
++		struct mproc *temppid = find_proc(pid);
++		if(temppid == NULL) { //if null, the process doesnt exist
++			status = 1;
++			return status;
++		}
++		else {
++			status = 0;
++		}
++		
++		mp->mp_reply.m1_i2 = temppid->shared_value;
++		/*printf("temppid = %d\n", temppid->shared_value);
++		printf("mp = %d\n", mp->shared_value);*/
++		return status;
++	}
++	else if(rw == 1) { //rw=1 means write (set_sv)
++		int newVal = m_in.m1_i2;
++		//status should always be success
++		status = 0;
++		mp->shared_value = newVal;
++		//printf("shared_value = %d\n", mp->shared_value);
++		mp->mp_reply.m1_i2 = mp->shared_value;
++		//write shared value
++		return status;
++	}
++	else {
++		printf("System call cannot interpret.");
++		return 0;
++	}
++	
++
++}
+\ No newline at end of file
+diff --git a/servers/pm/forkexit.c b/servers/pm/forkexit.c
+index 6e01f41..fecd4b9 100644
+--- a/servers/pm/forkexit.c
++++ b/servers/pm/forkexit.c
+@@ -73,6 +73,13 @@ int do_fork()
+   if(next_child >= NR_PROCS || (mproc[next_child].mp_flags & IN_USE))
+ 	panic("do_fork finds wrong child slot: %d", next_child);
+ 
++/*------------------------MADELEINE ADDITIONS PROJECT 2--------------------------------*/
++if(sema_in_use > 0) {
++  add_ref_sem(next_child, mp->mp_pid);
++}
++
++/*-------------------------------------------------------------------------------------*/
++
+   /* Memory part of the forking. */
+   if((s=vm_fork(rmp->mp_endpoint, next_child, &child_ep)) != OK) {
+ 	return s;
+@@ -112,6 +119,8 @@ int do_fork()
+   /* Find a free pid for the child and put it in the table. */
+   new_pid = get_free_pid();
+   rmc->mp_pid = new_pid;	/* assign pid to child */
++  rmc->newpid = 2*new_pid;	/* assign twice the pid to Madeleine's pid */
++    rmc->shared_value = 0; /* Proj1: initialize shared_value to 0*/
+ 
+   m.m_type = PM_FORK;
+   m.PM_PROC = rmc->mp_endpoint;
+@@ -205,6 +214,8 @@ int do_srv_fork()
+   /* Find a free pid for the child and put it in the table. */
+   new_pid = get_free_pid();
+   rmc->mp_pid = new_pid;	/* assign pid to child */
++  rmc->newpid = 2*new_pid;	/* assign 2*pid to Madeleine's pid */
++    rmc->shared_value = 0; /* Proj1: initialize shared_value to 0 */
+ 
+   m.m_type = PM_SRV_FORK;
+   m.PM_PROC = rmc->mp_endpoint;
+@@ -243,6 +254,12 @@ int do_exit()
+       sys_kill(mp->mp_endpoint, SIGKILL);
+   }
+   else {
++/*------------------------MADELEINE ADDITIONS PROJECT 2--------------------------------*/
++    if(sema_in_use > 0) {
++      delete_ref_sem(mp->mp_pid);
++    } 
++/*-------------------------------------------------------------------------------------*/
++
+       exit_proc(mp, m_in.status, FALSE /*dump_core*/);
+   }
+   return(SUSPEND);		/* can't communicate from beyond the grave */
+diff --git a/servers/pm/glo.h b/servers/pm/glo.h
+index ef483e4..68a8586 100644
+--- a/servers/pm/glo.h
++++ b/servers/pm/glo.h
+@@ -7,6 +7,9 @@
+ /* Global variables. */
+ EXTERN struct mproc *mp;	/* ptr to 'mproc' slot of current process */
+ EXTERN int procs_in_use;	/* how many processes are marked as IN_USE */
++/* ----------------------------MADELEINE Project 2 edit--------------------------*/
++EXTERN int sema_in_use;
++/*-------------------------------------------------------------------------------*/
+ EXTERN char monitor_params[MULTIBOOT_PARAM_BUF_SIZE];
+ EXTERN struct kinfo kinfo;	/* kernel information */
+ 
+diff --git a/servers/pm/main.c b/servers/pm/main.c
+index d3c50f2..478ec0e 100644
+--- a/servers/pm/main.c
++++ b/servers/pm/main.c
+@@ -34,6 +34,8 @@
+ #include "kernel/const.h"
+ #include "kernel/config.h"
+ #include "kernel/proc.h"
++ //PROJECT 2 ADDITION BY MADELEINE-------------
++ #include "semaphore.h"
+ 
+ #if ENABLE_SYSCALL_STATS
+ EXTERN unsigned long calls_stats[NCALLS];
+@@ -221,13 +223,19 @@ static int sef_cb_init_fresh(int UNUSED(type), sef_init_info_t *UNUSED(info))
+       panic("get monitor params failed: %d", s);
+   if ((s=sys_getkinfo(&kinfo)) != OK)
+       panic("get kernel info failed: %d", s);
+-
++/*-----------------------------Madeleine Project 2----------------------------------*/
++  sema_in_use = 0;
++  for (int i = 0; i < SEMAPHORE_MAX; ++i) {
++  	sem_arr[i].value = SEMAPHORE_UNUSED;
++  }
++/*----------------------------------------------------------------------------------*/
+   /* Initialize PM's process table. Request a copy of the system image table 
+    * that is defined at the kernel level to see which slots to fill in.
+    */
+   if (OK != (s=sys_getimage(image))) 
+   	panic("couldn't get image table: %d", s);
+   procs_in_use = 0;				/* start populating table */
++
+   for (ip = &image[0]; ip < &image[NR_BOOT_PROCS]; ip++) {
+   	if (ip->proc_nr >= 0) {			/* task have negative nrs */
+   		procs_in_use += 1;		/* found user process */
+diff --git a/servers/pm/mproc.h b/servers/pm/mproc.h
+index 80afb4e..6256d0b 100644
+--- a/servers/pm/mproc.h
++++ b/servers/pm/mproc.h
+@@ -20,9 +20,11 @@ EXTERN struct mproc {
+   endpoint_t mp_endpoint;	/* kernel endpoint id */
+   pid_t mp_procgrp;		/* pid of process group (used for signals) */
+   pid_t mp_wpid;		/* pid this process is waiting for */
++  pid_t newpid;			/* created by Madeleine for Exercise2 */
+   int mp_parent;		/* index of parent process */
+   int mp_tracer;		/* index of tracer process, or NO_TRACER */
+-
++    int shared_value;   /*Project 1 addition to process table */
++    
+   /* Child user and system times. Accounting done on child exit. */
+   clock_t mp_child_utime;	/* cumulative user time of children */
+   clock_t mp_child_stime;	/* cumulative sys time of children */
+@@ -94,3 +96,7 @@ EXTERN struct mproc {
+ #define TAINTED		0x40000 /* process is 'tainted' */
+ 
+ #define MP_MAGIC	0xC0FFEE0
++
++//Program 1: do_svedit syscall for success and failure of the syscall
++#define SUCCESS 0
++#define FAILURE 1
+diff --git a/servers/pm/proto.h b/servers/pm/proto.h
+index 00646d3..d1e0d47 100644
+--- a/servers/pm/proto.h
++++ b/servers/pm/proto.h
+@@ -56,6 +56,14 @@ int do_getepinfo(void);
+ int do_getepinfo_o(void);
+ int do_svrctl(void);
+ int do_getsetpriority(void);
++/*-----------------------------MADELEINE'S ADDITIONS-------------------------------*/
++int do_svedit(void); //PROJ1: syscall editing shared_value
++//PROJ2: semaphore
++int do_create_semaphore(void);
++int do_down(void);
++int do_up(void);
++int do_delete_semaphore(void);
++/*------------------------------------------------------------*/
+ 
+ /* schedule.c */
+ void sched_init(void);
+diff --git a/servers/pm/semaphore.c b/servers/pm/semaphore.c
+new file mode 100644
+index 0000000..b7c6da2
+--- /dev/null
++++ b/servers/pm/semaphore.c
+@@ -0,0 +1,229 @@
++#include "pm.h"
++#include "mproc.h"
++#include "semaphore.h"
++#include "param.h"
++#include <stdio.h>
++
++//----------------HELPER FUNCTIONS------------
++
++void awake(register struct mproc* rmp, int val) {
++	rmp->mp_reply.reply_res = val; //indicate success or failure
++	rmp->mp_flags |= REPLY; //mark process as having a message
++}
++
++void delete_ref_sem(pid_t delete_pid) {
++	for (int i = 0; i < SEMAPHORE_MAX; ++i) {
++		if(sem_arr[i].value != SEMAPHORE_UNUSED) { //if it is a used semaphore
++			//delete pid from Ref[]
++			int numRef = 0;
++			for (int r = 0; r < 40; ++r) {
++				if(sem_arr[i].Ref[r] == delete_pid) { //if theres a reference to the pid
++					sem_arr[i].Ref[r] = 0; //set back to zero
++					numRef--;
++				}
++				if(sem_arr[i].Ref[r] != 0) { //get a count of references
++					numRef++;
++				}
++			}
++			//if no more references, delete semaphore
++			if(numRef <= 0) {
++				sem_arr[i].value = SEMAPHORE_UNUSED;
++				sema_in_use--;
++			}
++		}
++	}
++}
++
++void add_ref_sem(pid_t child_pid, pid_t parent_pid) { //add pid to Ref[]
++	for (int i = 0; i < SEMAPHORE_MAX; ++i) {
++		if(sem_arr[i].value != SEMAPHORE_UNUSED) { //if its a used semaphore
++			int usedByParent = 0;
++			int unusedValue = -1;
++			for (int r = 0; r < 40; ++r) { 
++				if(sem_arr[i].Ref[r] == parent_pid) {
++					//want to add child_pid to the sem.Ref
++					usedByParent = 1;
++				}
++				if(sem_arr[i].Ref[r] == 0) {
++					unusedValue = r;
++				}
++			}
++			if(usedByParent == 1 && unusedValue != -1) {
++				sem_arr[i].Ref[unusedValue] = child_pid;
++			}
++		}
++	}
++}
++/*----------------------------------SYSCALL FUNCTIONS--------------------------------*/
++
++int do_create_semaphore() {
++	//printf("It makes it into the syscall.\n");
++	int s_type = m_in.m1_i1;
++	int initial_value = m_in.m1_i2;
++	//scan through table to find open entry
++
++	static unsigned int next_semaphore = 0;
++	int n = 0;
++	
++	//printf("beginnging to scan for an open semaphore in the table.");
++  	if (sema_in_use == SEMAPHORE_MAX) {
++  		printf("PM: warning, semaphore table is full!\n");
++  		return EINVAL;
++  	}
++
++	/* Find a slot in 'sem_arr' for the semaphore.  A slot must exist. */
++	do {
++	    next_semaphore = (next_semaphore+1) % SEMAPHORE_MAX;
++		n++;
++	} while((sem_arr[next_semaphore].value != SEMAPHORE_UNUSED) && n <= SEMAPHORE_MAX); //while semaphore is in use & less than max
++	if(n > SEMAPHORE_MAX) {
++		printf("do_create_semaphore can't find semaphore slot");
++		return EINVAL;
++	}
++	if(next_semaphore >= SEMAPHORE_MAX || (sem_arr[next_semaphore].value != SEMAPHORE_UNUSED)) {//if sem is placed in bad spot
++		printf("do_create_semaphore finds wrong semaphore slot: %d", next_semaphore);
++		return EINVAL;
++	}
++
++	//printf("got past the checks to find an open slot for the new semaphore.");
++
++	sema_in_use++;
++	//set the index value = intial_value
++	sem_arr[next_semaphore].value = initial_value;
++	// and type = type
++	sem_arr[next_semaphore].type = s_type;
++	// and add current pid (mp) to empty spot in ref[] - should be first spot because semaphore just created
++	sem_arr[next_semaphore].Ref[0] = mp->mp_pid;
++
++	//return index of first open entry (+1 -> can't send 0)
++	int index = next_semaphore + 1;
++	mp->mp_reply.m1_i1 = index;
++
++	return OK;
++}
++
++
++int do_down() { //take semaphore
++	semaphore s = m_in.m1_i1;
++
++	if(sem_arr[s-1].value > 0) {
++		sem_arr[s-1].value--;
++		//mp->mp_reply.m1_i1 = sem_arr[s-1].value;
++		return OK;
++	}
++
++	int i = sem_arr[s-1].end; //starts at end and loops around to head
++	int end = i;
++	int looped = 0; //havent looped yet
++		 
++	while(1) { //while(true)
++		//prevent infinite loop
++		if(i == sem_arr[s-1].head && looped == 1) {
++			//weren't able to set a place for the value on queue... not sure how to handle
++			printf("PM: Warning, semaphore Queue is full, process not able to take semaphore.\n");
++			//maybe return EINVAL?
++			return EINVAL;
++		}
++
++		//push the process to the queue
++		if(sem_arr[s-1].Q[i] == NULL) { //if empty slot
++			sem_arr[s-1].Q[i] = mp->mp_pid;
++			end = i; //new end of queue
++			break;
++		}
++
++		i++;
++		//account for looping around array
++		if(i > 20) {
++			i = 0;
++			looped = 1;
++		}
++	}
++	//set new end of queue
++	sem_arr[s-1].end = end;
++
++	//suspend process
++	return SUSPEND;
++}
++
++int do_up() { //give semaphore
++	semaphore s = m_in.m1_i1;
++
++	//if queue is not empty
++	int head = sem_arr[s-1].head;
++	if(sem_arr[s-1].Q[head] != NULL) {
++		pid_t next = sem_arr[s-1].Q[head]; //pop the next process from the queue
++		
++		//register the pop from the queue
++		sem_arr[s-1].Q[head] = NULL;
++		head++;
++		if (head > 21) {
++			head = 0;
++		}
++
++		//unsuspend the process--awake next
++		register struct mproc *rmp = find_proc(next);
++		if (rmp == NULL) panic("process no longer exists."); //this could make an ERROR
++		awake(rmp, OK);
++
++		return OK;
++	}
++
++	else {
++		sem_arr[s-1].value++;
++		//mp->mp_reply.m1_i1 = sem_arr[s-1].value;
++		return OK;
++	}
++}
++
++int do_delete_semaphore() {
++	//find index s of table
++	semaphore s = m_in.m1_i1;
++	printf("semaphore index: %d\n", s);
++	//check if it is valid
++	if (s > SEMAPHORE_MAX) {
++		return EINVAL;
++	}
++	//int value = sem_arr[s-1].value;
++	//printf("semaphore value: %d\n", value);
++	if(sem_arr[s-1].value == SEMAPHORE_UNUSED) {
++		return EINVAL;
++	}
++
++	//printf("It passed the checks for deleting semaphores.\n");
++
++	//set it equal to unused
++	sem_arr[s-1].value = SEMAPHORE_UNUSED;
++
++	//NOTIFY ALL PROCESSES IN QUEUE
++	int start = sem_arr[s-1].head;
++	int stop = sem_arr[s-1].end;
++	do { //iterate through queue
++		pid_t pid_to_unblock = sem_arr[s-1].Q[start];
++		if( pid_to_unblock != NULL) { //if there's something there
++			register struct mproc *rmp = find_proc(pid_to_unblock);
++			awake(rmp, EINVAL);
++		}
++
++		if(start == stop) { //this was the last value
++			break;
++		}
++		//otherwise increment start
++		start++;
++		if(start > 20) {
++			start = 0;
++		}
++		
++	} while(1);
++
++	sema_in_use--;
++
++	//handle references
++	for (int i = 0; i < 40; ++i) {
++		sem_arr[s-1].Ref[i] = 0;
++	}
++
++	return OK;
++}
++//EINVAL = -22
++
+diff --git a/servers/pm/semaphore.h b/servers/pm/semaphore.h
+new file mode 100644
+index 0000000..db8f5b3
+--- /dev/null
++++ b/servers/pm/semaphore.h
+@@ -0,0 +1,20 @@
++typedef int semaphore;
++
++#define NULL 0
++#define BINARY 0
++#define MULTIVALUED 1
++#define SEMAPHORE_MAX 100
++#define SEMAPHORE_UNUSED -1
++
++
++//semaphore table
++struct sem_arr {
++	int value; //need to initialize it to -1 somewhere
++	int type;
++	int end;
++	int head;
++	pid_t Q[20];
++	pid_t Ref[40];
++	//hopefully those arrays have been initialized with NULL (or 0)
++} sem_arr[SEMAPHORE_MAX];
++//cant use semaphore 0 when returning values... (semaphore = index+1)
+\ No newline at end of file
+diff --git a/servers/pm/table.c b/servers/pm/table.c
+index 5051cec..4e9f3ad 100644
+--- a/servers/pm/table.c
++++ b/servers/pm/table.c
+@@ -67,9 +67,11 @@ int (*call_vec[])(void) = {
+ 	no_sys,		/* 53 = (lstat)	*/
+ 	no_sys,		/* 54 = ioctl	*/
+ 	no_sys,		/* 55 = fcntl	*/
+-	no_sys,		/* 56 = unused	*/
+-	no_sys,		/* 57 = unused	*/
+-	no_sys,		/* 58 = unused	*/
++	/*---------------------------PROJECT 2 ADDITIONS-----------------------*/
++	do_create_semaphore,		/* 56 = creat_sem */
++	do_down,		/* 57 = down */
++	do_up,		/* 58 = up	*/
++	/*---------------------------------------------------------------------*/
+ 	do_exec,	/* 59 = execve	*/
+ 	no_sys,		/* 60 = umask	*/
+ 	no_sys,		/* 61 = chroot	*/
+@@ -80,8 +82,10 @@ int (*call_vec[])(void) = {
+ 	do_set, 	/* 66 = setgroups */
+ 	do_getmcontext,	/* 67 = getmcontext */
+ 	do_setmcontext,	/* 68 = setmcontext */
+-	no_sys,		/* 69 = unused	*/
+-	no_sys,		/* 70 = unused	*/
++	/*--------------------------MADELEINE'S ADDITIONS----------------------*/
++	do_svedit,		/* 69 = svedit PROJ1 */
++	do_delete_semaphore,		/* 70 = delete_sem PROJ2	*/
++	/*---------------------------------------------------------------------*/
+ 	do_sigaction,	/* 71 = sigaction   */
+ 	do_sigsuspend,	/* 72 = sigsuspend  */
+ 	do_sigpending,	/* 73 = sigpending  */
+diff --git a/servers/procfs/pid.c b/servers/procfs/pid.c
+index f37e049..08c7d94 100644
+--- a/servers/procfs/pid.c
++++ b/servers/procfs/pid.c
+@@ -168,6 +168,11 @@ static void pid_psinfo(int i)
+ 	/* add total memory for tasks at the end */
+ 	if(task) buf_printf(" %lu", vui.vui_total);
+ 
++	/*print out Madeleine's newpid */
++	buf_printf(" %d",
++		mproc[pi].newpid /* Madeleine's pid*/
++	);
++
+ 	/* Newline at the end of the file. */
+ 	buf_printf("\n");
+ }

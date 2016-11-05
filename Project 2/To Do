@@ -1,0 +1,28 @@
+To Do:
+
+RESEARCH-
+WHERE to put file? for semaphore ------------->CHECK
+Queue implementation (from message passing) ------>IGNORED
+environment variables (semaphore somehow in there) ---------->CHECK
+How to create semaphore (similar to creating processes) ----->CHECK
+How to get current pid (mp? from Project 1) ----------------->CHECK
+
+WORK-
+CHECK 1. put the typedef for semaphores (provided in project description) somewhere that can be used
+CHECK 2. create a file for the syscalls (create, delete, up, down) 
+CHECK 4. start implementing the syscalls (follow steps from proj 1) 
+CHECK 5. make the queue
+CHECK 6. make the semaphore table
+
+CHECK 7. throw semaphore typedef (header) into unistd.h
+CHECK 8. initialize sem_arr.value to -1 somewhere
+CHECK 9. referencing semaphores
+
+CHECK 10. compile that ish in Minix (start debugging)
+
+CHECK 11. handle the case where invalid s handle
+CHECK 12. handle case where initial value is invalid
+
+BUILDING-
+syscalls- /usr/src/releasetools make services, make install, reboot
+lib- /usr/src/lib/libc make, make install, reboot

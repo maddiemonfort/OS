@@ -1,0 +1,37 @@
+Implementing Syscall:
+	//what changes made to what files
+	In /usr/src/servers/pm/mproc.h, I added the int shared_value. 
+
+	In /usr/src/servers/pm/forkexit.c, I initialized the shared_value to 0 in both the do_fork and do_srv_fork functions.
+
+	In /usr/src/servers/pm/table.c, I added do_svedit in position 69
+
+	In /usr/src/include/minix/callnr.h, I added the line: #define SVEDIT 69
+
+	In /usr/src/servers/pm/proto.h, I added the line: int do_svedit(void); under misc.c
+
+	In /usr/src/servers/pm, I added a new file called do_svedit.c, this is where the system call is implemented
+
+	In /usr/src/servers/pm/Makefile, I added "do_svedit.c" to the SRCS= line.
+
+	In /usr/src/include/unistd.h I added the function prototypes for the two library functions
+
+	In /usr/src/servers/pm/mproc.h add #define lines for SUCCESS and FAILURE
+
+	In /usr/src/lib/libc/sys-minix/Makefile.inc add svedit.c under SRCS=
+
+	In /usr/src/lib/libc/sys-minix add the svedit.c file which contains the library functions for get_sv and set_sv
+
+
+
+Testing:
+	test1: testing to get the output of shared_value before setting it, it gives 0. This is correct.
+	test2: testing the ability to changed shared_value. it changes the shared_value.
+(when adds one line to the sys call (in the if(tempted == NULL), write “return status;”) and changes “status = &newStatus” to “*status = newStatus” in the lib function)
+	test3: testing the ability to get failure from get_sv an invalid pid.  It successfully gives a status of failure.
+
+	forktest: This works for -3, 8, 10,0, etc.
+
+
+Known Bugs:
+	none 

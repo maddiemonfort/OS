@@ -1,0 +1,59 @@
+Madeleine Monfort
+SEMAPHORE PROJECT 2
+
+---------- IMPLEMENTING SYSCALLS ----------
+	/usr/src/servers/pm/table.c
+		- 56: do_create_semaphore
+		- 57: do_down
+		- 58: do_up
+		- 70: do_delete_semaphore
+	/usr/src/include/minix/callnr.h- added:
+		#define CREAT_SEM     56
+		#define DOWN_SEM      57
+		#define UP_SEM        58
+		#define DELETE_SEM    70
+	/usr/src/servers/pm/proto.h- added:
+		int do_create_semaphore(void);
+		int do_down(void);
+		int do_up(void);
+		int do_delete_semaphore(void);
+	/usr/src/servers/pm/Makefile
+		- added semaphore.c to end of SRCS= line
+
+---------------- IMPLEMENTING LIBRARY FUNCTIONS ----------------
+	/usr/src/include/unistd.h- added:
+		typedef int semaphore;
+		#define NULL 0
+		#define BINARY 0
+		#define MULTIVALUED 1
+		semaphore create_semaphore(int type, int initial_value);
+		int down(semaphore s);
+		int up(semaphore s);
+		int delete_semaphore(semaphore s);
+	/usr/src/lib/libc/sys-minix/Makefile.inc- 
+		- added semaphoreLib.c under SRCS= line
+	/usr/src/lib/libc/sys-minix-
+		- added file semaphoreLib.c
+
+-------------------- DETAILING SEMAPHORE CREATION ---------------------
+----- EDIT GLO.H -----
+In usr/src/servers/pm folder, I added variable: sema_in_use
+to keep track of semaphores (similar to how pm kept track of processes)
+
+It was initialized to 0 in usr/src/servers/pm/main.c
+
+----- SYSCALLS -----
+I initialized sem_arr[].values to SEMAPHORE_UNUSED in usr/src/servers/pm/main.c
+(had to include my semaphore.h file)
+
+The queue for processes being suspended was implemented through an array of pid_t values.  The index of the head and end of the queue were kept track of in the sem_arr[] table which held all the semaphores.  
+
+----- EDIT FORKEXIT -----
+Under do_fork() I added the line: add_ref_sem(next_child, mp->mp_pid);
+Under do_exit() I added the line: delete_ref_sem(mp->mp_pid);
+
+Testing: used tests posted on canvas
+passes all tests
+
+Known Bugs: the queue was not tested in it’s entirety.  But the only known issue is that if there’s no more space on the queue, the sys call just returns an error. Without actually suspending the process.
+

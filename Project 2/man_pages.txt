@@ -1,0 +1,66 @@
+CREAT_SEM(56)
+
+NAME
+	creat_sem -- creates a semaphore
+
+SYNOPSIS
+	int
+	do_create_semaphore(void);
+
+DESCRIPTION
+	creat_sem creates a semaphore by adding it to the sem_arr table initialized in the pm folder in main.c
+
+RETURN VALUES
+	Upon successful completion, it returns the integer of the index in the sem_arr table of the semaphore it just created.  If it cannot find a place in the table, it will return an error.
+
+----------------------------------------------------------------------------------
+
+DOWN_SEM(57)
+
+NAME
+	down_sem -- calls the "down" function on the semaphore
+
+SYNOPSIS
+	int
+	do_down(void);
+
+DESCRIPTION
+	It takes a semaphore and either subtracts 1 from its value, or pushes a process into the semaphore's queue and suspends the process until it can be woken.  If there is no room in the queue, it returns an error, but doesn't suspend the process.
+
+RETURN VALUES
+	Upon successful completion, it returns OK.  If it fails for any reason, it returns EINVAL.
+
+----------------------------------------------------------------------------------
+
+UP_SEM(58)
+
+NAME
+	up_sem -- calls the "up" function on the semaphore
+
+SYNOPSIS
+	int
+	do_up(void);
+
+DESCRIPTION
+	It takes a semaphore and either adds 1 to its value, or pops a process from the semaphore's queue and wakes it up.
+
+RETURN VALUES
+	Upon successful completion, it returns OK.  If it fails for any reason, it returns EINVAL.
+
+----------------------------------------------------------------------------------
+
+DELETE_SEM(70)
+
+NAME
+	delete_sem -- deletes a semaphore
+
+SYNOPSIS
+	int
+	do_delete_semaphore(void);
+
+DESCRIPTION
+	deletes a semaphore from the sem_arr table by marking its value as unused.  It also de-references all processes in it's Ref array.  It also notifies all processes currently in its queue, and wakes them with an EINVAL, or error message.
+
+RETURN VALUES
+	Upon successful completion, it returns OK.  If it fails for any reason, it returns EINVAL.
+
